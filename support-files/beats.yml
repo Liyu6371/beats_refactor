@@ -1,0 +1,111 @@
+# beats 采集框架配置
+# 当前配置项目包含了 监控云任务(cloud_monitor) & 监控源任务(source_monitor)
+
+beats:
+  logger:
+    level: info # debug, info, warn, error
+    output: stdout # 输出方式，stdout, file
+    log_file: ./beats_log/ # 当 output 为 file 时，日志文件存放目录
+  test_model: false # 是否开启测试模式，开启测试模式后不会讲数据上报到GSE
+
+# # 采集数据源配置
+# source:
+#   - name: kafka
+#     worker_num: 1
+#     config:
+#       enabled: true
+#       username: kafka_user
+#       password: kafka_password
+#       version: 3.4.0
+#       kafka_consumer_group: "kafka_beats_consumer"
+#       kafka_consume_oldest: false
+#       kafka_assignor: "range" # 可选值：range, roundrobin, sticky
+#       hosts: 
+#         - "kafka_host1:9092"
+#         - "kafka_host2:9092"
+#       topics:
+#         - "topic1"
+#         - "topic2"
+
+# 发送数据配置
+sender:
+  - name: kafka_sender
+    worker_num: 3
+    config:
+      enabled: true
+      retry_count: 3
+      ack_type: all # all:WaitForAll, local: WaitForLocal, no: NoResponse
+      brokers:
+        - "kafka_host1:9092"
+        - "kafka_host2:9092"
+
+  - name: socket_sender
+    worker_num: 3
+    config:
+      enabled: true
+      end_point: /var/run/ipc.state.report
+
+# task 配置
+# 任务配置包含了监控源采集任务和监控云采集任务
+# 监控源采集任务(source_monitor)和监控云采集任务(cloud_monitor)
+tasks:
+  # 监控源采集任务
+  - name: kafka_source_monitor
+    data_id: 333333
+    source:
+      - name: kafka
+        worker_num: 1
+        config:
+          enabled: true
+          username: kafka_user
+          password: kafka_password
+          version: 3.4.0
+          kafka_consumer_group: "kafka_beats_consumer"
+          kafka_consume_oldest: false
+          kafka_assignor: "range" # 可选值：range, roundrobin, sticky
+          hosts: 
+            - "kafka_host1:9092"
+            - "kafka_host2:9092"
+          topics:
+            - "topic1"
+            - "topic2"
+    pipeline:
+      processor:
+        - "processor1"
+        - "processor2"
+      shaper:
+        - "shaper1"
+        - "shaper2"
+    sender:
+      - "kafka_sender"
+      - "socket_sender"
+    # 对于不同的监控源任务，全局的 cmdb 匹配规则可以覆盖
+    cmdb_match_rules:
+    
+  # 监控云采集任务
+  - name: vm_cloud_monitor
+    period: 1m
+    data_id: 444444
+    pipeline:
+      processor:
+        - "processor3"
+        - "processor4"
+      shaper:
+        - "shaper3"
+        - "shaper4"
+    sender:
+      - "socket_sender"
+
+# 全局的 cmdb 匹配规则, 当任务中没有指定 监控源任务的时候可以为空
+cmdb_match_rules:
+  - key: "data.originType"
+    operator: "contains"
+    value: "host"
+    object_model: "host"
+    instance_match_rules:
+      - key: "data.originIp"
+        operator: "eq"
+        value: "ip"
+      - key: "data.originName"
+        operator: "eq"
+        value: "name"
