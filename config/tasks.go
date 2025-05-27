@@ -25,12 +25,10 @@ func (t *TaskConfig) IsCloudMonitorTask() bool {
 
 type SourceConfig struct {
 	Name   string                 `yaml:"name"`
-	Worker int                    `yaml:"worker_num"`
 	Config map[string]interface{} `yaml:"config"`
 }
 
 type SenderConfig struct {
 	Name   string                 `yaml:"name"`
-	Worker int                    `yaml:"worker_num"` // Number of workers for the sender
-	Config map[string]interface{} `yaml:"config"`     // Configuration for the sender
+	Config map[string]interface{} `yaml:"config"` // Configuration for the sender
 }

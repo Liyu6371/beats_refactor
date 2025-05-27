@@ -4,7 +4,7 @@ import "context"
 
 type SourceInstance interface {
 	GetName() string
-	Start(context.Context, chan<- SourceMsg)
+	Start(context.Context, chan<- []byte)
 	Alive() bool
 	Stop()
 }
@@ -19,8 +19,4 @@ func RegisterSourceInstance(name string, f NewSourceInstanceFunc) {
 	if f != nil && name != "" {
 		instanceFactory[name] = f
 	}
-}
-
-type SourceMsg interface {
-	Data() []byte
 }

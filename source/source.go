@@ -5,13 +5,12 @@ import (
 	"beats_refactor/logger"
 	"context"
 	"errors"
-	"fmt"
 	"sync"
 )
 
 type SourceService struct {
 	wg sync.WaitGroup
-	ch chan SourceMsg
+	ch chan []byte
 	mu sync.RWMutex
 
 	ctx    context.Context
@@ -41,7 +40,7 @@ func NewSourceService(c []*config.SourceConfig, ctx context.Context) (*SourceSer
 	return &SourceService{
 		wg: sync.WaitGroup{},
 
-		ch: make(chan SourceMsg, 100), // 缓冲通道，大小可根据需要调整
+		ch: make(chan []byte, 100), // 缓冲通道，大小可根据需要调整
 		mu: sync.RWMutex{},
 
 		ctx:             ctx,
@@ -52,29 +51,38 @@ func NewSourceService(c []*config.SourceConfig, ctx context.Context) (*SourceSer
 }
 
 func (s *SourceService) Start() {
-	// 在NewSourceService中已经校验了配置
+	// 在NewSourceService中已经校验了配置，在此处拉起所有的 sourceInstance 实例
+	// 传递 ctx 用于控制拉起的具体的 sourceInstance 实例的生命周期
 	for _, i := range s.SourceConf {
 		fn := instanceFactory[i.Name]
-		// 拉起一定数量的 worker 实例
-		for j := range i.Worker {
-			instance, err := fn(i)
-			instName := fmt.Sprintf("%s-%d", i.Name, j)
-			if err != nil {
-				logger.Errorf("create source instance %s worker %d failed: %v", i.Name, j, err)
-				continue
-			}
-			s.wg.Add(1)
-			s.addInstance(instName, instance)
-			go func(n string) {
-				defer func() {
-					s.wg.Done()
-					s.deleteInstance(n)
-				}()
-				logger.Debugf("source instance %s worker %d started", i.Name, j)
-				instance.Start(s.ctx, s.ch)
-				logger.Debugf("source instance %s worker %d stopped", i.Name, j)
-			}(instName)
+		instance, err := fn(i)
+		if err != nil {
+			logger.Errorf("create source instance %s failed: %v", i.Name, err)
+			continue
 		}
+		s.wg.Add(1)
+		s.addInstance(i.Name, instance)
+
+		// 拉起一定数量的 worker 实例
+		// for j := range i.Worker {
+		// 	instance, err := fn(i)
+		// 	instName := fmt.Sprintf("%s-%d", i.Name, j)
+		// 	if err != nil {
+		// 		logger.Errorf("create source instance %s worker %d failed: %v", i.Name, j, err)
+		// 		continue
+		// 	}
+		// 	s.wg.Add(1)
+		// 	s.addInstance(instName, instance)
+		// 	go func(n string) {
+		// 		defer func() {
+		// 			s.wg.Done()
+		// 			s.deleteInstance(n)
+		// 		}()
+		// 		logger.Debugf("source instance %s worker %d started", i.Name, j)
+		// 		instance.Start(s.ctx, s.ch, n)
+		// 		logger.Debugf("source instance %s worker %d stopped", i.Name, j)
+		// 	}(instName)
+		// }
 	}
 }
 
@@ -99,7 +107,7 @@ func (s *SourceService) deleteInstance(name string) {
 	delete(s.runningInstance, name)
 }
 
-func (s *SourceService) GetChan() chan SourceMsg {
+func (s *SourceService) GetChan() chan []byte {
 	return s.ch
 }
 

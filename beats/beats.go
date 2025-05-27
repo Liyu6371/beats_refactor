@@ -33,7 +33,5 @@ func New(c context.Context) (*Beats, error) {
 }
 
 func (b *Beats) Start() {
-	for _, task := range config.GetTasks() {
-
-	}
+	return
 }
